@@ -1,0 +1,11 @@
+{
+    "components": [
+        {
+            "name": "sflowpusher" ,
+            "dependencies": [
+                "python","nosql_manager","discoveryws"
+            ], 
+            "python": "nox.netapps.static_flow_pusher.flowpusher"
+        }
+    ]
+}

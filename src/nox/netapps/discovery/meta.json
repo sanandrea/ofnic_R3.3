@@ -1,0 +1,28 @@
+{
+    "components": [
+        {
+            "name": "discovery" ,
+            "dependencies": [
+                "link event",
+                "pybindings_storage",
+                "lldp auth",
+                "pyuser_event_log"
+            ],
+            "python": "nox.netapps.discovery.discovery" 
+        },
+        {
+            "name": "link event" ,
+            "library": "link_event"
+        },
+        {
+            "name": "discoveryws" ,
+            "dependencies": [
+                "webservice",
+		"discovery",
+		"pytopology",
+		"netic_api_mgr"
+            ],
+            "python": "nox.netapps.discovery.discoveryws"
+        }
+    ]
+}

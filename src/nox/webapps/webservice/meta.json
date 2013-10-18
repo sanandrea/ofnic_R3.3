@@ -1,0 +1,18 @@
+{
+    "components": [
+        {
+            "name": "webservice" ,
+            "dependencies": [
+                "webauth"
+            ],
+            "python": "nox.webapps.webservice.webservice"
+        },
+        {
+            "name": "netic_api_mgr" ,
+            "dependencies": [
+                "webauth"
+            ],
+            "python": "nox.webapps.webservice.neticws"
+        }
+    ]
+}

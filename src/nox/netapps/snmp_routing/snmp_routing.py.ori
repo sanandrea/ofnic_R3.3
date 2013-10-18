@@ -1,0 +1,609 @@
+# Copyright 2013 (C) Universita' di Roma La Sapienza
+# 
+# This file is part of OFNIC Uniroma GE.
+# 
+# OFNIC is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# OFNIC is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with OFNIC.  If not, see <http://www.gnu.org/licenses/>.
+
+from __future__ import generators #needed for Dijkstra's algorithm
+from nox.lib.core import *
+from nox.lib.packet.packet_utils      import ip_to_str
+from array import array
+
+#snmp stuff
+from pysnmp.entity.rfc3413.oneliner import cmdgen
+from pysnmp.smi import builder
+
+from nox.netapps.discovery import discovery #the topology is described in adjacency_list populated from discovery
+
+from copy import deepcopy #needed to deep copy dictonary of dictionary
+
+import socket, struct, md5
+
+
+
+#100 mibt = 10000000
+    
+class snmp_routing(Component):
+    dpToNip={}
+    hostIp = array('i')
+    totalStats ={}
+    ipToDatapathid={}
+    portidToPortname={}
+    adjacency_hosts={}
+    netGraph={}
+    SNMP_CHECK_PERIOD = 10
+    installTimes=0
+    
+    installedFlows={}
+
+	
+    
+    def __init__(self, ctxt):
+        Component.__init__(self, ctxt)
+        
+        #self.adjacency_list = discovery.adjacency_list
+    
+    def install(self):
+        # register for event dp_join
+        self.discovery = self.resolve(discovery.discovery) #need to resolve discovery where is the described the topology
+        self.register_for_datapath_join ( lambda dp,stats : snmp_routing.dp_join(self, dp, stats) )
+	self.register_for_datapath_leave ( lambda dp : snmp_routing.dp_leave(self, dp) )
+        pass
+    
+    def getInterface(self):
+        return str(snmp_routing)
+        
+    def dp_leave(self, dp):   
+		print "*HOST LEAVING FROM SNMP_ROUTING*"+str(dp)  
+		#leavedIpHost=self.ctxt.get_switch_ip(dp)
+		for allhost in snmp_routing.hostIp:
+			print "host: "+str(allhost)
+			
+			#print "io voglio rimuovere: "+str(leavedIpHost)
+		ipToRemove=snmp_routing.dpToNip[dp]	
+		if ipToRemove in snmp_routing.hostIp:
+			snmp_routing.hostIp.remove(ipToRemove)
+			print "Rimosso host "+str(ipToRemove)
+		
+		#if ip_to_str_reversed(leavedIpHost) in snmp_routing.portidToPortname:
+		#	snmp_routing.portidToPortname.remove(ip_to_str_reversed(leavedIpHost))
+        
+    def dp_join(self, dp, stats): 
+		print "*NEW HOST FROM SNMP_ROUTING*"+str(dp)
+		
+		joinedIpHost=self.ctxt.get_switch_ip(dp)
+		snmp_routing.dpToNip[dp]=joinedIpHost #needed to remove if there is a leave
+		snmp_routing.ipToDatapathid[ip_to_str_reversed(joinedIpHost)]=dp;#add the datapath id related to the host ip
+		prtidprtnameMapping={}
+		for port in stats[PORTS]:
+			prtidprtnameMapping[port[PORT_NO]]=port['name']	#onw of this two instructions is redundant and will be deleted 
+			print "Speed: "+str(port)
+			prtidprtnameMapping[port['name']]=port[PORT_NO] #when i figure out what is more efficient TODO
+		snmp_routing.portidToPortname[ip_to_str_reversed(joinedIpHost)]=prtidprtnameMapping # in portidToPortname we have the mapping of each port id with his name and viceversa for each host ip
+		print "joined host: "+str(joinedIpHost)
+		snmp_routing.hostIp.append(joinedIpHost)
+						
+						
+						
+        				#print ip_to_str(self.ctxt.get_switch_ip(dp))
+        		#for port in stats[PORTS]:
+        		#	print port
+		    
+        
+	# ---------------------------------------------------------------------- 
+    # Start snmp timer which gather statistics from hosts every
+    # SNMP_CHECK_PERIOD.
+    # ---------------------------------------------------------------------- 
+
+    def start_poll_snmp_thread(self):  
+    	print "***Starting gathering statistics...***"
+    	for dp1, port1, dp2, port2 in self.discovery.adjacency_list: #here i access to the adjacency_list that is in discovery
+    		print "dp1: "+str(dp1)
+    	for host in snmp_routing.hostIp:
+   			print "IP: "+ip_to_str(host)
+   			
+   			cmdGen = cmdgen.CommandGenerator()
+   			
+			mibBuilder = cmdGen.snmpEngine.msgAndPduDsp.mibInstrumController.mibBuilder
+			#print str(mibBuilder.getMibSources())
+			
+			mibSources = mibBuilder.getMibSources() + (
+				builder.DirMibSource('/hosthome/OF/ethtool-snmpd/pymib'),
+				)
+
+			mibBuilder.setMibSources(*mibSources)
+			mibBuilder.loadModules('ETHTOOL-MIB',)
+			print builder.MibBuilder().getMibPath()
+			
+			print "Probing ip: "+ip_to_str_reversed(host)
+			
+			errorIndication, errorStatus, errorIndex, varBindTable = cmdGen.nextCmd(
+    			cmdgen.CommunityData('public'),
+    			cmdgen.UdpTransportTarget((ip_to_str_reversed(host), 161)),
+    			#cmdgen.MibVariable('SNMPv2-MIB', 'sysDescr', 0),
+    			(1,3,6,1,4,1,39178,100,1,1),
+    			#(1,3,6,1,2,1,31,1,1,1,1),
+    			lookupNames=True, lookupValues=True,
+			)
+
+			# Check for errors and print out results
+			if errorIndication:
+				print(errorIndication)
+			elif errorStatus:
+				print(errorStatus)
+			else:
+			
+				oldId="-1"
+				switchStats ={}
+				oldStats ={}
+				if snmp_routing.totalStats.has_key(ip_to_str_reversed(host)) :
+					oldStats = deepcopy(snmp_routing.totalStats[ip_to_str_reversed(host)])
+				 
+				
+				snmp_routing.totalStats[ip_to_str_reversed(host)]=switchStats
+				for varBindTableRow in varBindTable:
+					
+					for name, val in varBindTableRow:
+						#print('%s = %s' % (name.prettyPrint(), val.prettyPrint()))	
+						statPrettified = name.prettyPrint().replace("ETHTOOL-MIB::ethtoolStat.\"","")
+						idStat = statPrettified[:statPrettified.find(".")].replace("\"","")#this is a progressive number starting from 1 given by the snmpwalk on the oid
+
+						statPrettified = name.prettyPrint().replace("ETHTOOL-MIB::ethtoolStat.\""+idStat+"\".\"","").replace("\"","") #here there will be the name of the stat
+						#print (statPrettified)
+						
+						if oldId != idStat:
+							
+							
+							switchStats[idStat]= {} #if i received stat for a new interface i have to initialize the dictionary
+							oldId = idStat 
+							
+							
+						if statPrettified != "rxbytes" and statPrettified != "ts_milliseconds" and statPrettified != "ts_openflow" and statPrettified != "txbytes" and statPrettified != "ts_seconds" : #if is the ifName
+							switchStats[idStat]["ifName"]= statPrettified #store the name of the iface
+						else:
+							switchStats[idStat][statPrettified]= long(val.prettyPrint()) #store the stat if it's not the ifname
+							
+						if statPrettified == "txbytes":
+							if  switchStats.has_key(idStat) and oldStats.has_key(idStat) and oldStats[idStat].has_key("ts_openflow") and ((switchStats[idStat]["ts_openflow"]-oldStats[idStat]["ts_openflow"])/1000000)>0 :
+								#print switchStats[idStat]["ifName"]
+								#print "Elapsed Time on: "+ip_to_str_reversed(host)+" : "+str((switchStats[idStat]["ts_openflow"]-oldStats[idStat]["ts_openflow"]))
+								switchStats[idStat]["txavg"]= (switchStats[idStat]["txbytes"]-oldStats[idStat]["txbytes"])/((switchStats[idStat]["ts_openflow"]-oldStats[idStat]["ts_openflow"])/1000000)
+								#print switchStats[idStat]["txavg"]
+								
+								switchStats[idStat]["rxavg"]= (switchStats[idStat]["rxbytes"]-oldStats[idStat]["rxbytes"])/((switchStats[idStat]["ts_openflow"]-oldStats[idStat]["ts_openflow"])/1000000)
+								#print switchStats[idStat]["rxavg"]
+							else :
+								switchStats[idStat]["txavg"] = 0
+								switchStats[idStat]["rxavg"] = 0
+								
+
+    	
+    	#print "**"+ip_to_str_reversed(host)+"**"
+    	#print totalStats.values() 
+    	print "***Ended gathering statistics...***"
+    	
+    	print "Topology view"
+    	
+    	#for dp1, port1, dp2, port2 in self.discovery.adjacency_list: #here i access to the adjacency_list that is in discovery
+    	#	print "dp1: "+str(dp1)
+    	#	print "port1: "+str(port1)
+    	#	print "dp2: "+str(dp2)
+    	#	print "port2: "+str(port2)
+    	
+		
+    	
+    	#print "adjacency_hosts"
+    	#for dp1, inport, dladdr,nwaddr,name in self.discovery.adjacency_hosts:	
+    	#	print "dp1: "+str(dp1)
+    	#	print "inport: "+str(inport)
+    	#	print "dladdr: "+str(dladdr)
+    	#	print "nwaddr: "+str(nwaddr)
+    	#	print "name: "+str(name)
+		
+    	print "Ip and Datapathid correlation"
+    	print snmp_routing.ipToDatapathid
+    	print "port id and name correlation"
+    	print snmp_routing.portidToPortname
+    	print "***Start generation of graph for Dijkstra's algorithm***"
+    	
+		
+		
+		
+    	snmp_routing.netGraph={} #reset the current graph
+    	for host in snmp_routing.hostIp: #for all the host that i monitor
+    		ipString= ip_to_str_reversed(host)
+    		datapathID= snmp_routing.ipToDatapathid[ipString] #take the datapathID for that host
+    		adjacencyTemp ={} #create the adjacency host list
+    		print ipString
+    		for dp1, port1, dp2, port2 in self.discovery.adjacency_list:#the link information about the host are in self.discovery.adjacency_list
+    			if dp1==datapathID:#if the dp1 is the host where i'm currently on
+    				#weight = totalStats[]
+					
+					portName= snmp_routing.portidToPortname[ipString][port1]
+					
+					
+					statsForHost= snmp_routing.totalStats[ipString]
+					keys = statsForHost.keys()
+					
+					for stat in keys:
+						#print portName
+    					#print statsForHost[stat]["ifName"]
+						if	statsForHost[stat]["ifName"] == portName:
+							print "found Stat: " + str(statsForHost[stat]["rxavg"]) +" bytes/s for interface: "+portName
+							#adjacencyTemp[dp2]=statsForHost[stat]["rxavg"] #set the weight for that link
+							
+							adjacencyTemp[dp2]=10000000-statsForHost[stat]["rxavg"]-statsForHost[stat]["txavg"] #set the weight for that link (max bandwidth - busy bandwidth)
+					
+					
+					
+				
+    		snmp_routing.netGraph[datapathID]=adjacencyTemp #update the information for that datapathID
+		
+		
+    	print snmp_routing.netGraph
+	
+
+	
+	
+		
+    	print "***END generation of graph for Dijkstra's algorithm***"
+
+    	self.install_path()
+		
+    	self.post_callback(snmp_routing.SNMP_CHECK_PERIOD, lambda : snmp_routing.start_poll_snmp_thread(self))   #reschedule the statistics gathering  
+		
+
+    def install_path(self): #install all needed flow between two dpid
+		#G = {'s':{'u':10, 'x':5}, 'u':{'v':1, 'x':2}, 'v':{'y':4}, 'x':{'u':3, 'v':9, 'y':2}, 'y':{'s':7, 'v':6}}
+		#sP = shortestPath(G,'s','v',0)
+		#print sP
+		sP=[]
+		
+		print "inside function"
+	
+		print snmp_routing.netGraph
+		#startNode = 1
+		#endNode = 3
+		#startPort=2 #port id where the source node is connected
+		#endPort=3 #port id where the destination node is connected
+
+
+		startNode = 1
+		endNode = 3
+		startPort=2 #port id where the source node is connected
+		endPort=3 #port id where the destination node is connected
+
+		if snmp_routing.netGraph.has_key(startNode) and snmp_routing.netGraph.has_key(endNode):
+			sP = shortestPath(snmp_routing.netGraph,startNode,endNode,9*1000000) #bandwidth requisite in Mb
+    		print sP
+	
+		#start analysing the path to retrieve the port id for each link	returned from the shortest path method
+		i=0
+		enhancedPath=[]
+	
+		while i < len(sP)-1:
+			for dp1, port1, dp2, port2 in self.discovery.adjacency_list:
+				if dp1==sP[i] and dp2 == sP[i+1]:#if i found a link that connect the two nodes on the path
+					enhancedPath.append([port1,port2])
+
+			i+=1
+		
+		stringToMd5=str(startPort) #a path start with the port where the host is connected
+		for switchOnPath in sP:
+			stringToMd5=stringToMd5+str(switchOnPath)
+		stringToMd5=stringToMd5+str(endPort) #a path ends with the port where the destination host is connected
+		
+			
+		pathMd5=md5.new(stringToMd5).hexdigest()
+		print "md5 of calculated path: "+str(pathMd5)+ "path: "+stringToMd5
+		
+		
+		pathID=md5.new(str(startPort+startNode+endNode+endPort)).hexdigest() #needed to identify if i have alrealdy calculated this path
+		print "pathID: "+str(pathID)
+		
+		if snmp_routing.installedFlows.has_key(pathID):
+			if snmp_routing.installedFlows[pathID]["md5"]==pathMd5: #if the path is already working return
+				print "already installed path"
+				return
+			else: #if the calculated path is different i need to remove it
+				print "remove old path"
+				for involvedDpId in snmp_routing.installedFlows[pathID]["path"]:
+					for attr in snmp_routing.installedFlows[pathID][involvedDpId]:
+						self.delete_datapath_flow(involvedDpId,attr)#remove the old flow in the path
+						print "removed attr from: "+str(involvedDpId)
+				
+		
+		#if i'm here i removed any old flows for this path if any 
+		snmp_routing.installedFlows[pathID]={}	
+		snmp_routing.installedFlows[pathID]["md5"]=pathMd5 #store the md5 of the calculated path
+		
+		
+		
+		print "*** Path with source and destination port information***"
+		snmp_routing.installedFlows[pathID]["path"]=sP
+		hostsPort=[] #list of all the ports in the path
+		i=0
+		while i < len(sP)-1 and len( enhancedPath)> 0:
+			print "Node: "+str(sP[i])
+			
+			if i==0:
+				attrsInvolved = self.install_flow(sP[i],startPort,enhancedPath[i][0],"192.168.10.2","192.168.20.2") #start node #was "192.168.10.2","192.168.20.2"
+				snmp_routing.installedFlows[pathID][sP[i]]=attrsInvolved #store the attrs
+				#hostsPort[0]=startPort #start host port
+				#snmp_routing.installedFlows[sP[i]]=[startPort,enhancedPath[i][0]]
+			else:
+				attrsInvolved = self.install_flow(sP[i],enhancedPath[i-1][1],enhancedPath[i][0],"192.168.10.2","192.168.20.2") #middle nodes
+				#snmp_routing.installedFlows[sP[i]]=[enhancedPath[i-1][1],enhancedPath[i][0]]
+				snmp_routing.installedFlows[pathID][sP[i]]=attrsInvolved #store the attrs
+				#hostsPort[i+1]=endPort #end host port
+			
+			print "link source port:"+ str(enhancedPath[i][0])
+			print "link destinantion port:"+ str(enhancedPath[i][1])
+			i+=1
+
+		
+		if len( enhancedPath)> 0:
+			
+			print "Node: "+str(sP[len(sP)-1])
+			attrsInvolved = self.install_flow(sP[len(sP)-1],enhancedPath[len(sP)-2][1],endPort,"192.168.10.2","192.168.20.2") #end node		
+			snmp_routing.installedFlows[pathID][sP[len(sP)-1]]=attrsInvolved #store the attrs
+			#hostsPort[len(sP)+1]=endPort #end host port
+			snmp_routing.installTimes+=1
+
+
+		#outport = 1
+		#dp_id = 1
+		#attrs = { 	core.IN_PORT : 2,core.DL_TYPE : ethernet.ethernet.ARP_TYPE, core.NW_PROTO:arp.arp.REQUEST,core.NW_SRC : '192.168.10.2',core.NW_DST : '192.168.20.2' }
+		
+		#idle_timeout = openflow.OFP_FLOW_PERMANENT
+		#hard_timeout = openflow.OFP_FLOW_PERMANENT
+		#actions = [[openflow.OFPAT_OUTPUT, [0, outport]]]
+		#print "***try to install arp flow***"
+		#self.install_datapath_flow(dp_id,attrs,idle_timeout, hard_timeout,actions)
+	
+		#print "***end \"try to install arp flow\"***"	
+	
+		#outport = 1
+		#dp_id = 1
+		#attrs = { 	core.IN_PORT : 2,core.DL_TYPE : ethernet.ethernet.IP_TYPE,core.NW_SRC : '192.168.10.2',core.NW_DST : '192.168.20.2' }
+	
+		#idle_timeout = openflow.OFP_FLOW_PERMANENT
+		#hard_timeout = openflow.OFP_FLOW_PERMANENT
+		#actions = [[openflow.OFPAT_OUTPUT, [0, outport]]]
+		#print "***try to install new flow***"
+		#self.install_datapath_flow(dp_id,attrs,idle_timeout, hard_timeout,actions)
+	
+		#print "***end \"try to install new flow\"***"
+
+			
+    def install_flow(self, dp_id, inport, outport, src_ip, dst_ip):
+		
+		attrsToReturn=[];#is needed to remove the flow when is needed and keep track of the attrs related to the installed flow
+		
+		#if snmp_routing.installTimes > 0: #remove this check because it's only for debug TODO
+		#	return
+		attrs = { 	core.IN_PORT : inport,core.DL_TYPE : ethernet.ethernet.ARP_TYPE, core.NW_PROTO:arp.arp.REQUEST,core.NW_SRC : src_ip,core.NW_DST : dst_ip }
+		attrsToReturn.append(attrs) #there are 4 attrs for each installed flow 2 for arp and 2 for the flow itself
+		
+		idle_timeout = openflow.OFP_FLOW_PERMANENT
+		hard_timeout = openflow.OFP_FLOW_PERMANENT
+		actions = [[openflow.OFPAT_OUTPUT, [0, outport]]]
+		print "***try to install arp flow with dp_id: "+ str(dp_id) +" inport: "+ str(inport) +" outport: "+ str(outport) +" src_ip "+ str(src_ip) +" dst_ip: "+ str(dst_ip) +" ***"
+		self.install_datapath_flow(dp_id,attrs,idle_timeout, hard_timeout,actions)
+	
+		#print "***end \"try to install arp flow\"***"
+		
+		
+		#make arp reply to flow...
+		attrs = { 	core.IN_PORT : outport,core.DL_TYPE : ethernet.ethernet.ARP_TYPE, core.NW_PROTO:arp.arp.REPLY,core.NW_SRC :dst_ip ,core.NW_DST : src_ip }
+		attrsToReturn.append(attrs) #there are 4 attrs for each installed flow 2 for arp and 2 for the flow itself
+		actions = [[openflow.OFPAT_OUTPUT, [0, inport]]]
+		
+		self.install_datapath_flow(dp_id,attrs,idle_timeout, hard_timeout,actions)
+		#make arp reply to flow... END
+
+		attrs = { 	core.IN_PORT : inport,core.DL_TYPE : ethernet.ethernet.IP_TYPE,core.NW_SRC : src_ip,core.NW_DST : dst_ip }
+		attrsToReturn.append(attrs) #there are 4 attrs for each installed flow 2 for arp and 2 for the flow itself
+	
+		idle_timeout = openflow.OFP_FLOW_PERMANENT
+		hard_timeout = openflow.OFP_FLOW_PERMANENT
+		actions = [[openflow.OFPAT_OUTPUT, [0, outport]]]
+		print "***try to install flow with dp_id: "+ str(dp_id) +" inport: "+ str(inport) +" outport: "+ str(outport) +" src_ip "+ str(src_ip) +" dst_ip: "+ str(dst_ip) +" ***"
+		self.install_datapath_flow(dp_id,attrs,idle_timeout, hard_timeout,actions)
+		
+		
+		#make the path to work also in the reverse path (comment this line to make the path work only in a way)
+		attrs = { 	core.IN_PORT : outport,core.DL_TYPE : ethernet.ethernet.IP_TYPE,core.NW_SRC : dst_ip,core.NW_DST : src_ip}
+		attrsToReturn.append(attrs) #there are 4 attrs for each installed flow 2 for arp and 2 for the flow itself
+		actions = [[openflow.OFPAT_OUTPUT, [0, inport]]]
+		
+		self.install_datapath_flow(dp_id,attrs,idle_timeout, hard_timeout,actions)
+		return attrsToReturn
+        
+def getFactory():
+    class Factory:
+        def instance(self, ctxt):
+            return snmp_routing(ctxt)
+    
+    return Factory()
+
+
+def ip_to_str_reversed( ipToConvert ):
+	ipSplitted = ip_to_str(ipToConvert).split(".")
+	ip =  ipSplitted[3]+"."+  ipSplitted[2]+"."+ipSplitted[1]+"."+ipSplitted[0]
+	return ip	
+
+def str_ip_to_str_reversed( ipToConvert ):
+	ipSplitted=str(ipToConvert).split(".")
+	ip =  ipSplitted[3]+"."+  ipSplitted[2]+"."+ipSplitted[1]+"."+ipSplitted[0]
+	return ip		
+	
+def ip2long(ip):
+
+    packedIP = socket.inet_aton(ip)
+    return struct.unpack("!L", packedIP)[0]
+	
+
+# Dijkstra's algorithm for shortest paths
+
+def Dijkstra(G,start,bandwidth,end=None):
+	"""
+	Find shortest paths from the start vertex to all
+	vertices nearer than or equal to the end.
+
+	The input graph G is assumed to have the following
+	representation: A vertex can be any object that can
+	be used as an index into a dictionary.  G is a
+	dictionary, indexed by vertices.  For any vertex v,
+	G[v] is itself a dictionary, indexed by the neighbors
+	of v.  For any edge v->w, G[v][w] is the length of
+	the edge.  This is related to the representation in
+	<http://www.python.org/doc/essays/graphs.html>
+	where Guido van Rossum suggests representing graphs
+	as dictionaries mapping vertices to lists of neighbors,
+	however dictionaries of edges have many advantages
+	over lists: they can store extra information (here,
+	the lengths), they support fast existence tests,
+	and they allow easy modification of the graph by edge
+	insertion and removal.  Such modifications are not
+	needed here but are important in other graph algorithms.
+	Since dictionaries obey iterator protocol, a graph
+	represented as described here could be handed without
+	modification to an algorithm using Guido's representation.
+
+	Of course, G and G[v] need not be Python dict objects;
+	they can be any other object that obeys dict protocol,
+	for instance a wrapper in which vertices are URLs
+	and a call to G[v] loads the web page and finds its links.
+	
+	The output is a pair (D,P) where D[v] is the distance
+	from start to v and P[v] is the predecessor of v along
+	the shortest path from s to v.
+	
+	Dijkstra's algorithm is only guaranteed to work correctly
+	when all edge lengths are positive. This code does not
+	verify this property for all edges (only the edges seen
+ 	before the end vertex is reached), but will correctly
+	compute shortest paths even for some graphs with negative
+	edges, and will raise an exception if it discovers that
+	a negative edge has caused it to make a mistake.
+	"""
+
+	D = {}	# dictionary of final distances
+	P = {}	# dictionary of predecessors
+	Q = priorityDictionary()   # est.dist. of non-final vert.
+	Q[start] = 0
+	
+	for v in Q:
+		D[v] = Q[v]
+		if v == end: break
+		
+		for w in G[v]:
+			vwLength = D[v] + G[v][w]
+			if w in D:
+				if vwLength < D[w]:
+					raise ValueError, \
+  "Dijkstra: found better path to already-final vertex"
+			elif w not in Q or vwLength < Q[w]:
+				if vwLength >= bandwidth: #bandwidth requisite
+					Q[w] = vwLength
+					P[w] = v
+	
+	return (D,P)
+			
+def shortestPath(G,start,end,bandwidth):
+	"""
+	Find a single shortest path from the given start vertex
+	to the given end vertex.
+	The input has the same conventions as Dijkstra().
+	The output is a list of the vertices in order along
+	the shortest path.
+	"""
+	if bandwidth <0: bandwidth=0
+	D,P = Dijkstra(G,start,bandwidth,end)
+	Path = []
+	while 1:
+		Path.append(end)
+		if end == start: break
+
+		if P.has_key(end):
+			end = P[end]
+		else: return {}
+	Path.reverse()
+	return Path
+
+#support class for Dijkstra's algorithm 
+	
+class priorityDictionary(dict):
+    def __init__(self):
+        '''Initialize priorityDictionary by creating binary heap
+of pairs (value,key).  Note that changing or removing a dict entry will
+not remove the old pair from the heap until it is found by smallest() or
+until the heap is rebuilt.'''
+        self.__heap = []
+        dict.__init__(self)
+
+    def smallest(self):
+        '''Find smallest item after removing deleted items from heap.'''
+        if len(self) == 0:
+            raise IndexError, "smallest of empty priorityDictionary"
+        heap = self.__heap
+        while heap[0][1] not in self or self[heap[0][1]] != heap[0][0]:
+            lastItem = heap.pop()
+            insertionPoint = 0
+            while 1:
+                smallChild = 2*insertionPoint+1
+                if smallChild+1 < len(heap) and \
+                        heap[smallChild] > heap[smallChild+1]:
+                    smallChild += 1
+                if smallChild >= len(heap) or lastItem <= heap[smallChild]:
+                    heap[insertionPoint] = lastItem
+                    break
+                heap[insertionPoint] = heap[smallChild]
+                insertionPoint = smallChild
+        return heap[0][1]
+	
+    def __iter__(self):
+        '''Create destructive sorted iterator of priorityDictionary.'''
+        def iterfn():
+            while len(self) > 0:
+                x = self.smallest()
+                yield x
+                del self[x]
+        return iterfn()
+	
+    def __setitem__(self,key,val):
+        '''Change value stored in dictionary and add corresponding
+pair to heap.  Rebuilds the heap if the number of deleted items grows
+too large, to avoid memory leakage.'''
+        dict.__setitem__(self,key,val)
+        heap = self.__heap
+        if len(heap) > 2 * len(self):
+            self.__heap = [(v,k) for k,v in self.iteritems()]
+            self.__heap.sort()  # builtin sort likely faster than O(n) heapify
+        else:
+            newPair = (val,key)
+            insertionPoint = len(heap)
+            heap.append(None)
+            while insertionPoint > 0 and \
+                    newPair < heap[(insertionPoint-1)//2]:
+                heap[insertionPoint] = heap[(insertionPoint-1)//2]
+                insertionPoint = (insertionPoint-1)//2
+            heap[insertionPoint] = newPair
+	
+    def setdefault(self,key,val):
+        '''Reimplement setdefault to call our customized __setitem__.'''
+        if key not in self:
+            self[key] = val
+        return self[key]

@@ -1,0 +1,38 @@
+{
+    "components": [
+        {
+            
+            "name": "bod_routing" ,
+            "dependencies": [
+                "python","open_stats"
+            ],
+           "python": "nox.netapps.snmp_routing.bod_routing" 
+
+        },
+        {
+            "name": "snmp_stats" ,
+            "dependencies": [
+                "python"
+            ],
+           "python": "nox.netapps.snmp_routing.snmp_stats"
+        },
+        {
+            "name": "open_stats" ,
+            "dependencies": [
+                "python"
+            ],
+           "python": "nox.netapps.snmp_routing.open_stats"
+        },
+        {
+            "name": "snmp_stats_ws" ,
+            "dependencies": ["python", "snmp_handler","open_stats" , "discoveryws"],
+            "python": "nox.netapps.snmp_routing.snmp_stats_ws"
+        },
+        {
+            "name": "bod_routing_ws" ,
+            "dependencies": ["python", "bod_routing"],
+            "python": "nox.netapps.snmp_routing.bod_routing_ws"
+        }
+    ]
+}
+

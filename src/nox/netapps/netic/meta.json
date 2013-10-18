@@ -1,0 +1,12 @@
+{
+    "components": [
+        {
+            "name": "snmp_handler" ,
+            "dependencies": [
+                "python",
+                "jsonmessenger"
+            ],
+           "python": "nox.netapps.netic.snmp_handler"
+        }
+    ]
+}

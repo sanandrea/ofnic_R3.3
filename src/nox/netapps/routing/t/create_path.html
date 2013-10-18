@@ -1,0 +1,35 @@
+<html>
+<body>
+<form name="input" action="https://10.0.0.2/netic.v1/OFNIC/virtualpath/create" method="post">
+
+
+<table style="margin-top:10px;" width="100%">
+    <tbody>
+
+	<tr><td colspan="5" style="border-bottom:1px solid black;"><b><br/>Mandatory Parameters</b></td></tr>
+	<tr> <td>Source IP address:</td><td><input type="text" name="nw_src" /></td></tr>
+	<tr> <td>Destination IP address:</td><td><input type="text" name="nw_dst" /></td></tr>
+	<tr> <td>Duration (s):</td><td><input type="text" name="duration" /></td></tr>
+	<tr> <td>Bandwidth (kbps):</td><td><input type="text" name="bandwidth" /></td></tr>
+	<tr> <td>Set ARP path:</td><td><input type="text" name="set_arp" /></td></tr>
+	<tr> <td>Bidirectional:</td><td><input type="text" name="bidirectional" /></td></tr>
+	<tr><td colspan="5" style="border-bottom:1px solid black;"><b><br/>Optional info if lldp is not announced by border hosts</b></td></tr>
+	<tr> <td>Source Datapath Id:</td><td><input type="text" name="dp_src" /></td></tr>
+	<tr> <td>Destination Datapath Id:</td><td><input type="text" name="dp_dst" /></td></tr>
+	<tr> <td>Entry Port Id:</td><td><input type="text" name="first_port" /></td></tr>
+	<tr> <td>Exit Port Id:</td><td><input type="text" name="last_port" /></td></tr>
+	<tr><td colspan="5" style="border-bottom:1px solid black;"><b><br/>Optional info if the "Set ARP path" is set to 1, but the Hosts don't support lldp</b></td></tr>
+	<tr> <td>Source Mac Address:</td><td><input type="text" name="dl_src" /></td></tr>
+	<tr> <td>Destination Mac Address:</td><td><input type="text" name="dl_dst" /></td></tr>
+	<tr><td colspan="5" style="border-bottom:1px solid black;"><b><br/>Optional info if the users wants to add granularity to the flow</b></td></tr>
+
+	<tr> <td>Ip Protocol:</td><td><input type="text" name="ip_proto" /></td></tr>
+	<tr> <td>Source Transport Port:</td><td><input type="text" name="tp_src" /></td></tr>
+	<tr> <td>Destination Transport Port:</td><td><input type="text" name="tp_dst" /></td></tr>
+
+    </tbody>
+</table>
+<input type="submit" value="Submit" />
+</form>
+</body>
+</html>

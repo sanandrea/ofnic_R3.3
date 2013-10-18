@@ -1,0 +1,18 @@
+{
+    "components": [
+        {
+            "name": "db_manager" ,
+            "dependencies": [
+                "python"
+            ], 
+            "python": "nox.coreapps.db_manager.mysql_manager" 
+        },
+        {
+            "name": "nosql_manager" ,
+            "dependencies": [
+                "python"
+            ], 
+            "python": "nox.coreapps.db_manager.mongodb_manager" 
+        }
+    ]
+}

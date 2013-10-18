@@ -1,0 +1,32 @@
+{
+    "components": [
+        {
+            "name": "datapathmem" ,
+            "library": "datapathmem" 
+        },
+        {
+            "name": "switchrtt" ,
+            "library": "switchrtt" ,
+            "dependencies": [
+                "datapathmem"
+            ]
+        },
+        {
+            "name": "linkload" ,
+            "library": "linkload" ,
+            "dependencies": [
+                "datapathmem"
+            ]
+        },
+        {
+        	"name": "pylinkload" ,
+        	"dependencies": ["linkload"],
+        	"python": "nox.netapps.networkstate.pylinkload"
+        },
+        {
+        	"name": "statisticsws",
+        	"dependencies": ["pylinkload", "discoveryws"],
+        	"python": "nox.netapps.networkstate.statisticsws"      
+        }
+    ]
+}
