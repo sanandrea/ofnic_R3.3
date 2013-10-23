@@ -220,6 +220,7 @@ class discoveryws(Component):
 
         #neticpath = ( webservice.WSPathStaticString("netic"), )
         #self.rootpath = neticpath + (webservice.WSPathStaticString(self.networkIdString),)
+        #rootpath = https://localhost/netic.v1/OFNIC
         self.rootpath = (webservice.WSPathStaticString(self.networkIdString),)
         
         reg(self._root_information,"GET",self.rootpath,"""Get info about this network and 
@@ -228,6 +229,7 @@ class discoveryws(Component):
         
         
         synchpath = self.rootpath + (webservice.WSPathStaticString("synchronize"),)
+        #rootpath = https://localhost/netic.v1/OFNIC/synchronize
 
         # /ws.v1/netic/synchronize
         networkId = synchpath
@@ -235,8 +237,8 @@ class discoveryws(Component):
 
         # /ws.v1/netic/synchronize/network
         networkpath=synchpath + (webservice.WSPathStaticString("network"),)
-        reg(self._synchronize_network_V2, "GET", networkpath,
-            """Get list of nodes and paths.""")
+        reg(self._synchronize_network_V2, "GET", networkpath, """Get list of nodes and paths.""")
+        
 
         # /ws.v1/netic/synchronize/network/all
         fullpath=networkpath + (webservice.WSPathStaticString("all"),)

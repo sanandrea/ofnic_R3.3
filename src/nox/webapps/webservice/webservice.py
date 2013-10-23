@@ -324,7 +324,9 @@ from nox.lib import config
 
 from nox.webapps.webserver import webserver
 from nox.webapps.webserver import webauth
+from nox.coreapps.db_manager.mysql_manager import *
 
+import hashlib
 import re
 import textwrap
 import simplejson as simplejson
@@ -453,7 +455,7 @@ def overLimits(request, errmsg, limits):
 
 ### Authorization
 #
-def authorization_failed(request, capabilities_sets):
+def authorization_failed(request, capabilities_set): #ogni ruolo corrisponde a un set, importante per i ruoli nuovi non di default
     """Verify authorization and output error message if not allowed.
 
     Checks for authorization (using `webauth.requestIsAllowed').  If
@@ -466,17 +468,35 @@ def authorization_failed(request, capabilities_sets):
     capabilities that the user must have for authorization to succeed.
     The user must hold all of the capabilities in at least one of the
     sets in the list for authorization to succeed."""
-    for s in capabilities_sets:
-        if webauth.requestIsAllowed(request, s):
-            return False
+    
+    #BEGIN OLD CODE
+    #for s in capabilities_sets:
+    #    if webauth.requestIsAllowed(request, s):
+    #        return False
+
+    #session = webserver.get_current_session(request)
+    #e = """This request requires one of the following capabilities sets:
+
+    #%s
+
+#You are logged in as user %s which does not have one or more of these
+#capabilities sets.""" % ("\n".join([", ".join(s) for s in capabilities_sets]), session.user.username)
+#    forbidden(request, e)
+
+    #END OLD CODE
+
+    #Valerio CODE
+    s=capabilities_set
+    if webauth.requestIsAllowed(request, s):
+        return False
 
     session = webserver.get_current_session(request)
-    e = """This request requires one of the following capabilities sets:
+    e = """This request requires one of the following capabilities:
 
     %s
 
 You are logged in as user %s which does not have one or more of these
-capabilities sets.""" % ("\n".join([", ".join(s) for s in capabilities_sets]), session.user.username)
+capabilities.""" % (capabilities_set, session.user.username)
     forbidden(request, e)
     return True
 
@@ -692,7 +712,7 @@ class WSRequestHandler:
     def __init__(self):
         self._path_tree = WSPathTreeNode(None, None)
 
-    def register(self, handler, request_method, path_components, doc=None, module_doc=None):
+    def register(self, handler, request_method, path_components, manager, version, doc=None, module_doc=None):
         """Register a web services request handler.
 
         The parameters are:
@@ -717,10 +737,25 @@ class WSRequestHandler:
 
             - doc: a string describing the result of this request.
             - module_doc: A doc that explains or encompasses a certain Nox Module"""
+        print "registering request:", doc
         pn = self._path_tree
         for pc in path_components:
             pn = pn.add_child(pc)
         pn.set_handler(request_method.upper(), handler, doc, module_doc)
+        
+        this_res="/netic.v"+ str(version) +pn.path_str()
+        
+        this_res=manager.db_path(this_res,request_method)
+        
+        
+        #If this res is not in the db (so has no required capabilities) it is added with a required capability which is the same as its method.
+        #It shouldn't be the case but may be needed.
+        #NOTE: if the new resource has some dynamic component like {obj_id} be sure to update the db_path function
+        #in mysql_manager and to properly alter the path this_res!
+        
+        if not manager.res_has_caps(this_res):
+            manager.add_cap_to_res(this_res,request_method)
+            
 
     def handle(self, request):
         return self._path_tree.handle(WSPathTraversal(request))
@@ -867,9 +902,9 @@ class WSPathArbitraryString(WSPathComponent):
     return WSPathExtractResult(unicode(pc, 'utf-8'))
 
 class WSLimits():
-    globalLimit = 100
+    globalLimit = 10000
     interval = 20
-    userLimit = [10,2,2,2]
+    userLimit = [1000,2000,2000,2000]
     cleanTimer = 60
     counters = {}
     timestamps = {}
@@ -983,6 +1018,7 @@ class WSRes(webauth.AuthResource):
     isLeaf = True
     required_capabilities = set([])
     wsLimits = WSLimits("NetIC")
+    HIDDEN_PW="ValerioTesi"
 
     def _get_interface_doc(self, request, arg):
         request.setHeader("Content-Type", "text/html")
@@ -991,11 +1027,28 @@ class WSRes(webauth.AuthResource):
     def _login(self, request, arg):
         username = request.args["username"][0]
         password = request.args["password"][0]
-        d = self.webauth.authenticateUser(request, username, password)
+        hashpass=hashlib.md5(self.HIDDEN_PW+password).hexdigest()
+        d = self.webauth.authenticateUser(request, username, hashpass)
         d.addCallback(self._auth_callback, request)
         d.addErrback(self._auth_errback, request)
         return server.NOT_DONE_YET
         
+    def _register(self,request,arg):
+        request.setResponseCode(200)
+        request.setHeader("Content-Type", "application/json")
+        username = request.args["username"][0]
+        password = request.args["password"][0]
+        hashpass=hashlib.md5(self.HIDDEN_PW+password).hexdigest()
+        check=self.manager.check_user(username)
+        d={}
+        if check==False:
+            self.manager.reg_user(username,hashpass)
+            d["result"]="Registration completed. You may now login."
+        else:
+            d["result"]="Error: Username already used. Pick a different one."
+        request.write(simplejson.dumps(d, indent=4))
+        request.finish()        
+    
     def _limits(self, request, arg):
         request.setResponseCode(200)
         request.setHeader("Content-Type", "application/json")
@@ -1017,9 +1070,12 @@ class WSRes(webauth.AuthResource):
     def __init__(self, component, version=1):
         self.version = version
         self.loginUri = "/netic.v" + str(self.version) + "/login"
+        self.regUri = "/netic.v" + str(self.version) + "/register"
         webauth.AuthResource.__init__(self, component)
         self.mgr = WSRequestHandler()
         self.webauth = component.resolve(webauth.webauth)
+        
+        self.manager = component.resolve(MySQLManager)
         self.register_request(self._get_interface_doc,
                               "GET", ( WSPathStaticString("doc"), ),
                               """Get a summary of requests supported by this
@@ -1027,15 +1083,22 @@ class WSRes(webauth.AuthResource):
         self.register_request(self._login,
                               "POST", ( WSPathStaticString("login"), ),
                               """Login to the webservice.""")
+        self.register_request(self._register,
+                              "POST", ( WSPathStaticString("register"), ),
+                              """Register to the webservice.""")
         self.register_request(self._limits,
                               "GET", ( WSPathStaticString("limits"), ),
                               """Limits of the webserver.""")
+    
+    def get_manager(self):
+        return self.manager
 
     def register_request(self, handler, request_method, path_components, doc, module_doc=None):
-        self.mgr.register(handler, request_method, path_components, doc, module_doc)
+        self.mgr.register(handler, request_method, path_components, self.manager, self.version, doc, module_doc)
 
     def render(self, request):
-
+        
+        self.required_capabilities=set([]) #azzero le cap
         # UoR, Andi: This piece of code check if some strange cross domain requests are done
         # and tells the to the sender that this site accepts all access-control methods.
         allHeaders = request.getAllHeaders()
@@ -1046,15 +1109,26 @@ class WSRes(webauth.AuthResource):
             request.setHeader("Content-Type", "application/json")
             request.finish()
             return
+
+        request.uri=request.uri.replace("%2F","/")
+
+        data = self.manager.check_path(request)
+        if (data):    
+            for cap in data:
+                self.required_capabilities.add(cap["Cap"])
         
         if request.path == self.loginUri:
             # No auth needed to auth... :-)
             return self.mgr.handle(request)
+        if request.path == self.regUri:
+            # No auth needed to reg... :-)
+            return self.mgr.handle(request) 
         if not self.webauth.is_initialized(): 
             return internalError(request,"Server Uninitialized")
         if not self.webauth.requestIsAuthenticated(request):
             return unauthorized(request)
-        if authorization_failed(request, [self.required_capabilities]):
+           #controllare privilegi
+        if authorization_failed(request, self.required_capabilities):
             return NOT_DONE_YET
         if not self.wsLimits.isInsideLimits(request):
             return overLimits(request, "User and/or total limis exceeded",self.wsLimits.getLimits(request))

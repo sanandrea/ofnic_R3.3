@@ -24,7 +24,9 @@ from nox.lib.core import *
 from nox.lib.directory import AuthResult
 from nox.lib import config
 
+from nox.coreapps.db_manager import mysql_manager
 
+import hashlib
 import os
 import types
 import urllib
@@ -35,7 +37,8 @@ from webserver import get_current_session
 all_immutable_roles = ["Superuser",
                        "Admin",
                        "Demo",
-                       "Readonly"]
+                       "Readonly",
+                       "No Access"] #aggiunto da Valerio in base a setup_immutable_roles
 
 class UnknownCapabilityError(Exception):
     pass
@@ -49,6 +52,8 @@ class webauth(Component):
         Component.__init__(self, ctxt)
         self.webserver = None
         self.directorymanager = None
+        
+        
         try: 
           from nox.ext.apps.directory.directorymanager import directorymanager
           self.directorymanager = self.resolve(directorymanager)
@@ -57,7 +62,7 @@ class webauth(Component):
         self.initialized = False
 
     def setup_immutable_roles(self):
-      # Create and register the immutable roles
+      # Create and register the immutable roles: li prende dall'array definito all'inizio
       for name in all_immutable_roles:
         if name == "Superuser":
             r = SuperuserRole(name)
@@ -68,6 +73,24 @@ class webauth(Component):
         Roles.register(r)
 
       self.webserver.authui_initialized = True
+      
+    def setup_editable_roles(self):
+        data = self.manager.call_roles_db()
+        for role in data:
+            r = Role(role["Role"], False, self.manager)
+            Roles.register(r)
+      
+    def setup_capabilities(self):
+        data = self.manager.call_cap_db()
+        for cap in data:
+            immutable_roles=set([])
+            if cap["Admin"]:
+                immutable_roles.add("Admin")
+            if cap["Demo"]:
+                immutable_roles.add("Demo")
+            if cap["Readonly"]:
+                immutable_roles.add("Readonly")
+            Capabilities.register(cap["Name"], cap["Description"], immutable_roles)
 
     def bootstrap_complete_callback(self, *args):
         self.setup_immutable_roles()
@@ -80,23 +103,33 @@ class webauth(Component):
     def install(self):
         self.webserver = self.resolve(str(webserver.webserver))
         self.register_for_bootstrap_complete(self.bootstrap_complete_callback)
+        self.manager=self.resolve(str(mysql_manager.MySQLManager)) #riferimento al modulo mysql_manager per le operazioni sul db
+        self.setup_capabilities()
+        self.setup_editable_roles()
+        
+    def getManager(self):
+        return self.manager
+        
 
     def requestIsAuthenticated(self, request):
         session = get_current_session(request)
-
-        if hasattr(session, "roles"):
-            #print "Subsequent calls of this method"
-            #print session.roles
-            return True
+        
+        #session.user: lo stesso che viene definito in authenticateUser al momento del login
+        
+        if not hasattr(session, "user"):
+            #if no user has logged in, no request can be autheticated
+            return False
 
         if not self.directorymanager or not self.directorymanager.supports_authentication():
-            #print "First call of this method"
+        
+        #devo controllare che i roles dell'utente siano compatibili con quelli associati a questa risorsa 
+                     
             session.requestIsAllowed = requestIsAllowed
-            user = User("assumed-admin", set(("Superuser",)))
-            session.user = user
-            roles = [ Roles.get(r) for r in user.role_names ]
+            
+            roles = [ Roles.get(r) for r in session.user.role_names ]
             session.roles = roles
-            session.language = "en"
+            session.language = session.user.language
+                
             return True
 
         return False
@@ -106,20 +139,41 @@ class webauth(Component):
 
         Since this is asynchronous, it returns a deferred.  If
         authentication succeeds, the callback is called.  If it fails,
-        the errback is called."""
+        the errback is called."""  
+        
+        roles=set([])
+        
         callerdeferred = Deferred()
-        if not self.directorymanager or not self.directorymanager.supports_authentication():
-            user = User("assumed-admin", set(("Superuser",)))
-            self._set_session_authinfo(request, callerdeferred, user)
+        if not self.directorymanager or not self.directorymanager.supports_authentication(): 
+            
+            data=self.manager.authenticate(username,password)
+            
+            if data==False:
+                self.failedLogin(request)
+            
+            else:
+                for role in data:
+                    roles.add(role["Role"])
+                user = User(username, roles)
+                self._set_session_authinfo(request, callerdeferred, user)
+                
+                                
         else:
             d = self.directorymanager.simple_auth(username, password)
             d.addCallback(self._auth_callback, request, callerdeferred)
             d.addErrback(self._auth_errback, request, callerdeferred)
         return callerdeferred
+        
+    def failedLogin(self, request):
+        request.write("User not found.")
+        get_current_session(request).expire()
+        request.finish()
+        return server.NOT_DONE_YET
 
     def _set_session_authinfo(self, request, callerdeferred, user):
         session = get_current_session(request)
         session.user = user
+            
         try:
             session.roles = [Roles.get(r) for r in session.user.role_names]
         except InvalidRoleError, e:
@@ -182,11 +236,13 @@ class Capabilities:
         if immutable_roles == None:
             immutable_roles = []
         else:
-            for r in immutable_roles:
+            for r in immutable_roles: #controllo che gli immutable_roles che passo siano tra quelli predefiniti
                 if r not in all_immutable_roles:
                     raise InvalidRoleError, "Only roles in webauth.all_immutable_roles are appropiate."
 
-        self._dict[name] = (description, immutable_roles)
+        self._dict[name] = (description, immutable_roles) #registro nel dizionario alla voce nome la sua descrizione e i ruoli predefiniti che la possiedono
+        
+        print "registering capability:", name, ",", description
 
     def has_registered(self, name):
         return self._dict.has_key(name)
@@ -202,7 +258,7 @@ class Capabilities:
 
     def immutable_roles(self, name):
         try:
-            return self._dict[name][1]
+            return self._dict[name][1] #ritorno l'insieme dei ruoli predefiniti che possiedono questa cap
         except KeyError, e:
             raise UnknownCapabilityError, str(name)
 
@@ -211,17 +267,25 @@ Capabilities = Capabilities()
 
 class Role:
     """Named set of capabilities"""
-    def __init__(self, name, immutable=False):
+    
+    def __init__(self, name, immutable=False, manager=None): #manager is the one passed from webauth to call mysql_manager function get_cap_by_role
         self.name = name
         self._capabilities = set()
+        self._immutable = False # is overridden below...
         if immutable:
-            self._immutable = False # is overridden below...
-            if not  self.name in all_immutable_roles:
+            if not  self.name in all_immutable_roles:   #controllo che sia un immutable_role predefinito
                 raise InvalidRoleError, "Only roles in webauth.all_immutable_roles can be set immutable."
-            for c in Capabilities.list():
-                if name in Capabilities.immutable_roles(c):
-                    self.add_capability(c)
-        self._immutable = immutable
+            for c in Capabilities.list(): #scorro la lista delle cap
+                if name in Capabilities.immutable_roles(c): #se questo ruolo si trova nell'insieme dei ruoli che devono avere questa cap...
+                    self.add_capability(c)  #...aggiungo la cap al suo set
+        else:  
+            data=manager.get_cap_by_role(name)     
+            for cap in data:
+                self.add_capability(cap["Cap"])
+            
+        self._immutable = immutable #reimposto il valore immutable dopo che ho modificato adeguatamente il ruolo
+            
+        
 
     def capabilities(self):
         return self._capabilities
@@ -326,7 +390,8 @@ class InvaidAuthSystemError(Exception):
     pass
 
 
-def requestIsAllowed(request, cap):
+def requestIsAllowed(request, cap): 
+
     session = get_current_session(request)
     try:
         roles = session.roles
@@ -334,9 +399,11 @@ def requestIsAllowed(request, cap):
         e = "Forbidding access due to unknown role in requestIsAllowed()"
         log.err(e, system="webauth")
         return False
-    if cap is None:
+    if not cap: #modificato da Valerio, vuoto vuol dire pari a FALSE
         return True
-    for role in roles:
+        
+    
+    for role in roles:        
         if role.has_all_capabilities(cap):
             return True
     return False

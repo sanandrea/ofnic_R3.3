@@ -7,7 +7,7 @@
         {
             "name": "webauth" ,
             "dependencies": [
-                "webserver"
+                "webserver","db_manager"
             ],
             "python": "nox.webapps.webserver.webauth"
         },

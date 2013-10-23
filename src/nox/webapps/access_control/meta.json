@@ -1,0 +1,11 @@
+{
+    "components": [
+        {
+            "name": "acl" ,
+            "dependencies": [
+                "python", "db_manager", "webservice"
+            ], 
+            "python": "nox.webapps.access_control.controlpanel" 
+        }
+    ]
+}

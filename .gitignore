@@ -1,0 +1,9 @@
+*.py[cod]
+*.so
+*.o
+*.a
+*.la
+*.ko
+*.in
+build
+

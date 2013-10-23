@@ -3,7 +3,7 @@
         {
             "name": "webservice" ,
             "dependencies": [
-                "webauth"
+                "webauth","db_manager"
             ],
             "python": "nox.webapps.webservice.webservice"
         },
