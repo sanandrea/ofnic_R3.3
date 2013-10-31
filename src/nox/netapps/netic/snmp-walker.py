@@ -31,6 +31,7 @@ import socket
 import simplejson as json
 import struct
 import time
+import signal
 
 
 HOST = '127.0.0.1'
@@ -225,6 +226,8 @@ def get_switches_ips():
 
 if __name__ == "__main__":
     print "Snmp walker started..."
+    #ignore child death, kernel will automatically reap them
+    signal.signal(signal.SIGCHLD, signal.SIG_IGN)
     get_switch_frequency = 3
     i = 0
     
