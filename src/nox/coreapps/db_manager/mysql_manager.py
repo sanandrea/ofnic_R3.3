@@ -35,13 +35,13 @@ Cursor = Conn.cursor(MySQLdb.cursors.DictCursor) #Permette l'accesso attraverso 
 
 
 def check_db_connection(fn):
-    def wrapped():
+    def wrapped(*args):
         retries = 5;
         while (retries > 0):
             retries -= 1;
             try:
                 print "we are good to go"
-                return fn()
+                return fn(*args)
             except MySQLdb.Error, e:
                 print "An error has been passed. %s" %e
                 if Conn:
