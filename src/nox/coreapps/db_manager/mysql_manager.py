@@ -30,8 +30,8 @@ MYSQL_USER = "root"
 MYSQL_PASSWD = "openflow"
 MYSQL_DB = "openflow_users" 
 
-Conn = MySQLdb.Connect(host = MYSQL_HOST, port = MYSQL_PORT, user = MYSQL_USER, passwd= MYSQL_PASSWD, db= MYSQL_DB )
-Cursor = Conn.cursor(MySQLdb.cursors.DictCursor) #Permette l'accesso attraverso il nome dei fields
+#Conn = MySQLdb.Connect(host = MYSQL_HOST, port = MYSQL_PORT, user = MYSQL_USER, passwd= MYSQL_PASSWD, db= MYSQL_DB )
+#Cursor = Conn.cursor(MySQLdb.cursors.DictCursor) #Permette l'accesso attraverso il nome dei fields
 
 
 def check_db_connection(fn):
@@ -40,6 +40,8 @@ def check_db_connection(fn):
         while (retries > 0):
             retries -= 1;
             try:
+                Conn = MySQLdb.Connect(host = MYSQL_HOST, port = MYSQL_PORT, user = MYSQL_USER, passwd= MYSQL_PASSWD, db= MYSQL_DB )
+                args[0].cursor = Conn.cursor(MySQLdb.cursors.DictCursor)
                 print "we are good to go"
                 return fn(*args)
             except MySQLdb.Error, e:
@@ -49,12 +51,14 @@ def check_db_connection(fn):
                 Conn = MySQLdb.Connect(host = MYSQL_HOST, port = MYSQL_PORT, 
                                        user = MYSQL_USER, passwd = MYSQL_PASSWD, 
                                        db = MYSQL_DB)
+        Conn.close()
         return None
     return wrapped
 
 
 class MySQLManager(Component):
-    
+    db = None
+    cursor = None
     
     
     def __init__(self, ctxt):
@@ -69,15 +73,15 @@ class MySQLManager(Component):
     @check_db_connection
     def call_roles_db(self):
         query = "SELECT DISTINCT Role FROM editable_roles;"
-        Cursor.execute(query)
-        data=Cursor.fetchall()
+        self.cursor.execute(query)
+        data=self.cursor.fetchall()
         return data
     
     @check_db_connection
     def check_role(self, role):
         query = "SELECT Role FROM editable_roles where Role='"+role+"';"
-        Cursor.execute(query)
-        if Cursor.rowcount>0:
+        self.cursor.execute(query)
+        if self.cursor.rowcount>0:
             return True
         else:
             return False
@@ -85,8 +89,8 @@ class MySQLManager(Component):
     @check_db_connection
     def check_role_all(self, role):
         query = "SELECT Name FROM roles where Name='"+role+"';"
-        Cursor.execute(query)
-        if Cursor.rowcount>0:
+        self.cursor.execute(query)
+        if self.cursor.rowcount>0:
             return True
         else:
             return False
@@ -95,23 +99,23 @@ class MySQLManager(Component):
     @check_db_connection
     def remove_role(self,role):
         query = "delete FROM editable_roles where Role='"+role+"';"
-        Cursor.execute(query)   
+        self.cursor.execute(query)   
         query = "delete from user_roles where Role='"+role+"';"
-        Cursor.execute(query)
+        self.cursor.execute(query)
 
     @check_db_connection        
     def call_users_db(self):
         query = "SELECT username FROM users;"
-        Cursor.execute(query)
-        data=Cursor.fetchall()
+        self.cursor.execute(query)
+        data=self.cursor.fetchall()
         return data
 
 
     @check_db_connection        
     def check_user(self, username):
         query = "SELECT username FROM users where username='"+username+"';"
-        Cursor.execute(query)
-        if Cursor.rowcount>0:
+        self.cursor.execute(query)
+        if self.cursor.rowcount>0:
             return True
         else:
             return False
@@ -120,29 +124,29 @@ class MySQLManager(Component):
     @check_db_connection            
     def reg_user(self,username,password):
         query="insert into users (username,password,language) values ('"+username+"','"+password+"','en');"
-        Cursor.execute(query)
+        self.cursor.execute(query)
         self.add_role_to_user(username,"Readonly");
 
 
     @check_db_connection     
     def remove_user(self,username):
         query = "delete FROM users where username='"+username+"';"
-        Cursor.execute(query)   
+        self.cursor.execute(query)   
         query = "delete from user_roles where User='"+username+"';"
-        Cursor.execute(query)
+        self.cursor.execute(query)
  
     @check_db_connection
     def call_cap_db(self):
         query = "SELECT * FROM capabilities;"
-        Cursor.execute(query)
-        data=Cursor.fetchall()
+        self.cursor.execute(query)
+        data=self.cursor.fetchall()
         return data
         
     @check_db_connection
     def check_cap(self, cap):
         query = "SELECT Name FROM capabilities where Name='"+cap+"';"
-        Cursor.execute(query)
-        if Cursor.rowcount>0:
+        self.cursor.execute(query)
+        if self.cursor.rowcount>0:
             return True
         else:
             return False
@@ -150,25 +154,25 @@ class MySQLManager(Component):
     @check_db_connection
     def get_cap_by_role(self, name):
         query = "SELECT Cap FROM editable_roles where Role='"+name+"';"
-        Cursor.execute(query)
-        data=Cursor.fetchall()
+        self.cursor.execute(query)
+        data=self.cursor.fetchall()
         return data
 
     @check_db_connection
     def get_other_cap_by_role(self, name):
         query = "SELECT Name FROM capabilities where Name not in (Select Cap FROM editable_roles where Role='"+name+"');"
-        Cursor.execute(query)
-        data=Cursor.fetchall()
+        self.cursor.execute(query)
+        data=self.cursor.fetchall()
         return data
 
     @check_db_connection
     def authenticate(self, username, password):
         query = "SELECT * FROM users where username='"+username+"' and password='"+password+"';"
-        Cursor.execute(query)
-        if Cursor.rowcount > 0:
+        self.cursor.execute(query)
+        if self.cursor.rowcount > 0:
             query = "SELECT * FROM user_roles where User='"+username+"';"
-            Cursor.execute(query)
-            data=Cursor.fetchall()
+            self.cursor.execute(query)
+            data=self.cursor.fetchall()
             return data    
         else:
             return False
@@ -176,30 +180,30 @@ class MySQLManager(Component):
     @check_db_connection
     def add_new_role(self,role):
         query = "select * from editable_roles where Role='"+role+"';"
-        Cursor.execute(query)
-        if Cursor.rowcount > 0:
+        self.cursor.execute(query)
+        if self.cursor.rowcount > 0:
             return False   
         else:
             query = "insert into editable_roles (Role,Cap) values('"+role+"','GET');"
-            Cursor.execute(query)
+            self.cursor.execute(query)
             return True
     
     @check_db_connection
     def add_cap_to_role(self,role,cap):
         query = "select * from editable_roles where Role='"+role+"' and Cap='"+cap+"';"
-        Cursor.execute(query)
-        if Cursor.rowcount > 0:
+        self.cursor.execute(query)
+        if self.cursor.rowcount > 0:
             return False   
         else:
             query = "insert into editable_roles (Role,Cap) values('"+role+"','"+cap+"');"
-            Cursor.execute(query)
+            self.cursor.execute(query)
             return True
 
     @check_db_connection
     def del_cap_from_role(self,role,cap):
         query = "delete from editable_roles where Role='"+role+"' and Cap='"+cap+"';"
-        Cursor.execute(query)
-        if Cursor.rowcount > 0:
+        self.cursor.execute(query)
+        if self.cursor.rowcount > 0:
             return True   
         else:
             return False
@@ -230,9 +234,9 @@ class MySQLManager(Component):
     def check_path(self,request):
         path=self.db_path(request.uri,request.method)
         query = "SELECT Cap FROM resources where Path='"+path+"';"    
-        Cursor.execute(query)
-        if Cursor.rowcount>0:
-            data=Cursor.fetchall()
+        self.cursor.execute(query)
+        if self.cursor.rowcount>0:
+            data=self.cursor.fetchall()
             return data
         else:
             return False
@@ -240,15 +244,15 @@ class MySQLManager(Component):
     @check_db_connection
     def get_res(self):
         query = "SELECT distinct Path FROM resources;"
-        Cursor.execute(query)
-        data=Cursor.fetchall()
+        self.cursor.execute(query)
+        data=self.cursor.fetchall()
         return data
     
     @check_db_connection    
     def check_res(self, path):
         query = "SELECT Path FROM resources where Path='"+path+"';"
-        Cursor.execute(query)
-        if Cursor.rowcount>0:
+        self.cursor.execute(query)
+        if self.cursor.rowcount>0:
             return True
         else:
             return False
@@ -256,15 +260,15 @@ class MySQLManager(Component):
     @check_db_connection
     def get_cap_by_res(self,res):
         query = "SELECT Cap FROM resources where Path='"+res+"';"
-        Cursor.execute(query)
-        data=Cursor.fetchall()
+        self.cursor.execute(query)
+        data=self.cursor.fetchall()
         return data
     
     @check_db_connection
     def res_has_caps(self,res):
         query = "SELECT Cap FROM resources where Path='"+res+"';"
-        Cursor.execute(query)
-        if Cursor.rowcount>0:
+        self.cursor.execute(query)
+        if self.cursor.rowcount>0:
             return True
         else:
             return False
@@ -272,26 +276,26 @@ class MySQLManager(Component):
     @check_db_connection
     def get_other_cap_by_res(self,res):
         query = "SELECT Name FROM capabilities where Name not in (Select Cap FROM resources where Path='"+res+"');"
-        Cursor.execute(query)
-        data=Cursor.fetchall()
+        self.cursor.execute(query)
+        data=self.cursor.fetchall()
         return data
     
     @check_db_connection
     def add_cap_to_res(self,res,cap):
         query = "select * from resources where Path='"+res+"' and Cap='"+cap+"';"
-        Cursor.execute(query)
-        if Cursor.rowcount > 0:
+        self.cursor.execute(query)
+        if self.cursor.rowcount > 0:
             return False   
         else:
             query = "insert into resources (Path,Cap) values('"+res+"','"+cap+"');"
-            Cursor.execute(query)
+            self.cursor.execute(query)
             return True
 
     @check_db_connection    
     def del_cap_from_res(self,res,cap):
         query = "delete from resources where Path='"+res+"' and Cap='"+cap+"';"
-        Cursor.execute(query)
-        if Cursor.rowcount > 0:
+        self.cursor.execute(query)
+        if self.cursor.rowcount > 0:
             return True   
         else:
             return False
@@ -299,34 +303,34 @@ class MySQLManager(Component):
     @check_db_connection
     def get_role_by_user(self,user):
         query = "SELECT Role FROM user_roles where User='"+user+"';"
-        Cursor.execute(query)
-        data=Cursor.fetchall()
+        self.cursor.execute(query)
+        data=self.cursor.fetchall()
         return data
     
 
     @check_db_connection
     def get_other_role_by_user(self,user):
         query = "SELECT Name FROM roles where Name not in (SELECT Role FROM user_roles where User='"+user+"');"
-        Cursor.execute(query)
-        data=Cursor.fetchall()
+        self.cursor.execute(query)
+        data=self.cursor.fetchall()
         return data
 
     @check_db_connection
     def add_role_to_user(self,user,role):
         query = "select * from user_roles where User='"+user+"' and Role='"+role+"';"
-        Cursor.execute(query)
-        if Cursor.rowcount > 0:
+        self.cursor.execute(query)
+        if self.cursor.rowcount > 0:
             return False   
         else:
             query = "insert into user_roles (User,Role) values('"+user+"','"+role+"');"
-            Cursor.execute(query)
+            self.cursor.execute(query)
             return True
     
     @check_db_connection    
     def del_role_from_user(self,user,role):
         query = "delete from user_roles where User='"+user+"' and Role='"+role+"';"
-        Cursor.execute(query)
-        if Cursor.rowcount > 0:
+        self.cursor.execute(query)
+        if self.cursor.rowcount > 0:
             return True   
         else:
             return False
