@@ -137,8 +137,8 @@ class snmpMega(Component):
                 oldTS = long(ifaceStat['ts_openflow'])
                 newTS = long(newStat[iface]['ts_openflow'])
                 
-                if (newTS == oldTS):
-                    #"""Why just why?"""
+                if (((newTS - oldTS)/1000000) == 0):
+                    print "Why just why?"
                     continue
                 
                 #print "ts ", newTS, oldTS
