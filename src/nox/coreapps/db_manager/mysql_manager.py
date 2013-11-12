@@ -42,10 +42,8 @@ def check_db_connection(fn):
             try:
                 Conn = MySQLdb.Connect(host = MYSQL_HOST, port = MYSQL_PORT, user = MYSQL_USER, passwd= MYSQL_PASSWD, db= MYSQL_DB )
                 args[0].cursor = Conn.cursor(MySQLdb.cursors.DictCursor)
-                print "we are good to go"
                 return fn(*args)
             except MySQLdb.Error, e:
-                print "An error has been passed. %s" %e
                 if Conn:
                     Conn.close
                 Conn = MySQLdb.Connect(host = MYSQL_HOST, port = MYSQL_PORT, 
