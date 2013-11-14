@@ -83,7 +83,7 @@ class open_stats(Component):
                 toBeDel.append(mid)
                 continue
             
-            lg.info("Probing " + str (mid))
+            #lg.info("Probing " + str (mid))
             self.send_flow_stat_request(self.monitoredFlows[mid]['dpid'], 
                                         self.monitoredFlows[mid]['match'])
         
@@ -233,10 +233,12 @@ class open_stats(Component):
             if count > 0:
                 strOut += ":"
             strOut += str(monID)
+            count += 1
         #print strOut#7e6b26a5
         return strOut
 
-    def remove_monitor_flow(self,monID):
+    def remove_monitor_flow(self,mid):
+        monID = hex(mid)[2:]
         if monID in self.monitoredFlows:
             del self.monitoredFlows[monID]
         if monID in self.flowStatMap:
