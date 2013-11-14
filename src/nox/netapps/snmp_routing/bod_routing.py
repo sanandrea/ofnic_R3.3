@@ -106,10 +106,10 @@ class bod_routing(Component):
         nnpi.dp_dst = npi.dp_src
         nnpi.first_port = npi.last_port
         nnpi.last_port = npi.first_port
-        if (npi.dl_dst != None):
+        if (npi.set_arp):
             nnpi.dl_src = npi.dl_dst
-        if (npi.dl_src != None):
             nnpi.dl_dst = npi.dl_src
+
         nnpi.ip_proto = npi.ip_proto
         nnpi.tp_src = npi.tp_dst
         nnpi.tp_dst = npi.tp_src
