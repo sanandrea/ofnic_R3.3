@@ -110,6 +110,18 @@ class MySQLManager(Component):
         data=self.cursor.fetchall()
         return data
 
+    def call_all_user_roles_db(self):
+        query = "SELECT User,GROUP_CONCAT(Role SEPARATOR ',') as Roles  FROM user_roles GROUP BY User;"
+        self.cursor.execute(query)
+        data=self.cursor.fetchall()
+        return data
+
+    @check_db_connection        
+    def get_all_roles_db(self):
+        query = "SELECT Name FROM roles;"
+        self.cursor.execute(query)
+        data=self.cursor.fetchall()
+        return data
 
     @check_db_connection        
     def check_user(self, username):

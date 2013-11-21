@@ -74,6 +74,7 @@ class ControlTools(Component):
         
         # /ws.v1/netic/OF_UoR/controlpanel/role
         rolepath=virtualpath + (webservice.WSPathStaticString("role"),)
+        reg(self._getAllRoles,"GET", rolepath,"""Get all available roles.""")
         
         # /ws.v1/netic/OF_UoR/controlpanel/role/{role_ID}                           
         roleidpath=rolepath + (WSPathExistingRole(self.manager),)
@@ -111,6 +112,10 @@ class ControlTools(Component):
         # /ws.v1/netic/OF_UoR/controlpanel/user
         userpath=virtualpath + (webservice.WSPathStaticString("user"),)                                                      
         reg(self._getusers,"GET", userpath,"""Get a list of all users.""")
+        
+        # /ws.v1/netic/OF_UoR/controlpanel/userroles
+        userpath=virtualpath + (webservice.WSPathStaticString("userroles"),)                                                      
+        reg(self._getAllUserRoles,"GET", userpath,"""Get a list of all user roles.""")
         
         # /ws.v1/netic/OF_UoR/controlpanel/user/{username}
         usernamepath=userpath + (WSPathExistingUser(self.manager),)
@@ -164,6 +169,14 @@ class ControlTools(Component):
         d={}
         d["roles"]=roles
         neticResponse(request,NTC_OK,d)
+
+    def _getAllRoles(self, request, arg):
+        request.setResponseCode(200)
+        request.setHeader("Content-Type", "application/json")
+        roles=self.manager.get_all_roles_db()
+        d={}
+        d["roles"]=roles
+        neticResponse(request,NTC_OK,d)
         
     def _getusers(self,request,arg):
         request.setResponseCode(200)
@@ -172,7 +185,19 @@ class ControlTools(Component):
         d={}
         d["users"]=users
         neticResponse(request,NTC_OK,d)
-        
+
+    def _getAllUserRoles(self,request,arg):
+        request.setResponseCode(200)
+        request.setHeader("Content-Type", "application/json")
+        users=self.manager.call_all_user_roles_db()
+        for user in users:
+            #convert from string into list
+            roles = user['Roles'].rsplit(',')
+            user['Roles'] = roles
+        d={}
+        d["user_roles"]=users
+        neticResponse(request,NTC_OK,d)
+
     def _getres(self, request, arg):
         request.setResponseCode(200)
         request.setHeader("Content-Type", "application/json")
