@@ -37,6 +37,7 @@ MYSQL_DB = "openflow_users"
 def check_db_connection(fn):
     def wrapped(*args):
         retries = 5;
+        #Conn = None
         while (retries > 0):
             retries -= 1;
             try:
@@ -44,12 +45,13 @@ def check_db_connection(fn):
                 args[0].cursor = Conn.cursor(MySQLdb.cursors.DictCursor)
                 return fn(*args)
             except MySQLdb.Error, e:
-                if Conn:
-                    Conn.close
-                Conn = MySQLdb.Connect(host = MYSQL_HOST, port = MYSQL_PORT, 
-                                       user = MYSQL_USER, passwd = MYSQL_PASSWD, 
-                                       db = MYSQL_DB)
-        Conn.close()
+                pass
+                #if Conn:
+                    #Conn.close
+                #Conn = MySQLdb.Connect(host = MYSQL_HOST, port = MYSQL_PORT, 
+                                       #user = MYSQL_USER, passwd = MYSQL_PASSWD, 
+                                       #db = MYSQL_DB)
+        #Conn.close()
         return None
     return wrapped
 
