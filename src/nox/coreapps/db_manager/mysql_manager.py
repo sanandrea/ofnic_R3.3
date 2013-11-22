@@ -117,8 +117,11 @@ class MySQLManager(Component):
         return data
 
     @check_db_connection        
-    def get_all_roles_db(self):
-        query = "SELECT Name FROM roles;"
+    def get_all_roles_db(self, onlyEditables):
+        if (onlyEditables):
+            query = "SELECT Name FROM roles where Editable = 1;"
+        else:
+            query = "SELECT Name FROM roles;"
         self.cursor.execute(query)
         data=self.cursor.fetchall()
         return data

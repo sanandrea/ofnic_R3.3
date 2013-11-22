@@ -76,6 +76,10 @@ class ControlTools(Component):
         rolepath=virtualpath + (webservice.WSPathStaticString("role"),)
         reg(self._getAllRoles,"GET", rolepath,"""Get all available roles.""")
         
+        # /ws.v1/netic/OF_UoR/controlpanel/editablesrole
+        editRolePath = virtualpath + (webservice.WSPathStaticString("editableroles"),)
+        reg(self._getAllEditables,"GET", editRolePath,"""Get all available editable roles.""")
+        
         # /ws.v1/netic/OF_UoR/controlpanel/role/{role_ID}                           
         roleidpath=rolepath + (WSPathExistingRole(self.manager),)
         reg(self._deleterole,"DELETE", roleidpath,"""Delete an existing editable role.""")
@@ -173,11 +177,19 @@ class ControlTools(Component):
     def _getAllRoles(self, request, arg):
         request.setResponseCode(200)
         request.setHeader("Content-Type", "application/json")
-        roles=self.manager.get_all_roles_db()
+        roles=self.manager.get_all_roles_db(False)
         d={}
         d["roles"]=roles
         neticResponse(request,NTC_OK,d)
-        
+
+    def _getAllEditables(self, request, arg):
+        request.setResponseCode(200)
+        request.setHeader("Content-Type", "application/json")
+        roles=self.manager.get_all_roles_db(True)
+        d={}
+        d["roles"]=roles
+        neticResponse(request,NTC_OK,d)
+       
     def _getusers(self,request,arg):
         request.setResponseCode(200)
         request.setHeader("Content-Type", "application/json")
