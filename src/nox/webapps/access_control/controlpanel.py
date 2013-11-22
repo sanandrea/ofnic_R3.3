@@ -205,6 +205,8 @@ class ControlTools(Component):
         for r in res:
             caps = r['Caps'].rsplit(',')
             r['Caps'] = caps
+            ids = r['IDs'].rsplit(',')
+            r['IDs'] = ids
         d={}
         d["res"]=res
         neticResponse(request,NTC_OK,d)
