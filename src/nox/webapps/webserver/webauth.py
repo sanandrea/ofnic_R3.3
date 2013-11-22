@@ -78,7 +78,7 @@ class webauth(Component):
         #Get only editable roles
         data = self.manager.get_all_roles_db(True)
         for role in data:
-            r = Role(role["Role"], False, self.manager)
+            r = Role(role["Name"], False, self.manager)
             Roles.register(r)
       
     def setup_capabilities(self):
