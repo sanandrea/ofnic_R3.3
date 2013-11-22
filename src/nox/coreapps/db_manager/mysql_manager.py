@@ -71,8 +71,9 @@ class MySQLManager(Component):
         print msg
     
     @check_db_connection
-    def call_roles_db(self):
-        query = "SELECT DISTINCT Role FROM editable_roles;"
+    def call_editables_caps_db(self):
+        #query = "SELECT User,GROUP_CONCAT(Role SEPARATOR ',') as Roles  FROM user_roles GROUP BY User;"
+        query = "SELECT Role,GROUP_CONCAT(Cap SEPARATOR ',') as Caps FROM editable_roles GROUP BY Role;"
         self.cursor.execute(query)
         data=self.cursor.fetchall()
         return data

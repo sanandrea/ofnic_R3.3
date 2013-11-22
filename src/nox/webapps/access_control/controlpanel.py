@@ -80,6 +80,10 @@ class ControlTools(Component):
         editRolePath = virtualpath + (webservice.WSPathStaticString("editableroles"),)
         reg(self._getAllEditables,"GET", editRolePath,"""Get all available editable roles.""")
         
+        # /ws.v1/netic/OF_UoR/controlpanel/editablesrole/caps
+        editablesCapPath=editRolePath + (webservice.WSPathStaticString("caps"),)                             
+        reg(self._getEditablesCaps,"GET", editablesCapPath,"""Get a list of all capabilities of editable roles.""")
+
         # /ws.v1/netic/OF_UoR/controlpanel/role/{role_ID}                           
         roleidpath=rolepath + (WSPathExistingRole(self.manager),)
         reg(self._deleterole,"DELETE", roleidpath,"""Delete an existing editable role.""")
@@ -99,10 +103,6 @@ class ControlTools(Component):
         # /ws.v1/netic/OF_UoR/controlpanel/role/{role_ID}/caps/{cap_name}
         delcappath=rolecapspath + (WSPathExistingCap(self.manager),)
         reg(self._delrolecap,"DELETE", delcappath,"""Delete a capability from an editable Role set.""")
-                    
-        # /ws.v1/netic/OF_UoR/controlpanel/role/editables
-        editablespath=rolepath + (webservice.WSPathStaticString("editables"),)                             
-        reg(self._getroles,"GET", editablespath,"""Get a list of all editable roles.""")
 
         # /ws.v1/netic/OF_UoR/controlpanel/role/create/{new_role}
         createrolepath=rolepath + (webservice.WSPathStaticString("create"),)
@@ -166,10 +166,14 @@ class ControlTools(Component):
         d["caps"]=caps
         neticResponse(request,NTC_OK,d)
         
-    def _getroles(self,request,arg):
+    def _getEditablesCaps(self,request,arg):
         request.setResponseCode(200)
         request.setHeader("Content-Type", "application/json")
-        roles=self.manager.call_roles_db()
+        roles=self.manager.call_editables_caps_db()
+        
+        for r in roles:
+            caps = r['Caps'].rsplit(',')
+            r['caps'] = caps
         d={}
         d["roles"]=roles
         neticResponse(request,NTC_OK,d)
