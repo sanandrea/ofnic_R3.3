@@ -255,7 +255,8 @@ class MySQLManager(Component):
     
     @check_db_connection
     def get_res(self):
-        query = "SELECT distinct Path FROM resources;"
+        #query = "SELECT distinct Path FROM resources;"
+        query = "SELECT Path,GROUP_CONCAT(Cap SEPARATOR ',') as Caps  FROM resources GROUP BY Path;"
         self.cursor.execute(query)
         data=self.cursor.fetchall()
         return data

@@ -202,6 +202,9 @@ class ControlTools(Component):
         request.setResponseCode(200)
         request.setHeader("Content-Type", "application/json")
         res=self.manager.get_res()
+        for r in res:
+            caps = r['Caps'].rsplit(',')
+            r['Caps'] = caps
         d={}
         d["res"]=res
         neticResponse(request,NTC_OK,d)
