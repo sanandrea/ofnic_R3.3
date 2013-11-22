@@ -173,7 +173,7 @@ class ControlTools(Component):
         
         for r in roles:
             caps = r['Caps'].rsplit(',')
-            r['caps'] = caps
+            r['Caps'] = caps
         d={}
         d["roles"]=roles
         neticResponse(request,NTC_OK,d)
