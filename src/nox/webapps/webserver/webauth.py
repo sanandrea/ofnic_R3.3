@@ -75,7 +75,8 @@ class webauth(Component):
       self.webserver.authui_initialized = True
       
     def setup_editable_roles(self):
-        data = self.manager.call_roles_db()
+        #Get only editable roles
+        data = self.manager.get_all_roles_db(True)
         for role in data:
             r = Role(role["Role"], False, self.manager)
             Roles.register(r)
