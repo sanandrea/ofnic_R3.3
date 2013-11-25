@@ -195,12 +195,14 @@ class MySQLManager(Component):
     
     @check_db_connection
     def add_new_role(self,role):
-        query = "select * from editable_roles where Role='"+role+"';"
+        query = "select Name from roles where Name='"+role+"';"
         self.cursor.execute(query)
         if self.cursor.rowcount > 0:
             return False   
         else:
             query = "insert into editable_roles (Role,Cap) values('"+role+"','GET');"
+            self.cursor.execute(query)
+            query = "insert into roles (Name,Editable) values('"+role+"','1');"
             self.cursor.execute(query)
             return True
     
