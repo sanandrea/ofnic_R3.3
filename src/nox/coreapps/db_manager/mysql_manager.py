@@ -103,6 +103,8 @@ class MySQLManager(Component):
         self.cursor.execute(query)   
         query = "delete from user_roles where Role='"+role+"';"
         self.cursor.execute(query)
+        query = "delete from roles where Name='"+role+"';"
+        self.cursor.execute(query)
 
     @check_db_connection        
     def call_users_db(self):
