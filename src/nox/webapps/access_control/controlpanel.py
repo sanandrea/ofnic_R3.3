@@ -115,7 +115,7 @@ class ControlTools(Component):
         
         # /ws.v1/netic/OF_UoR/controlpanel/user
         userp=virtualpath + (webservice.WSPathStaticString("user"),)                                                      
-        reg(self._getusers,"GET", userpath,"""Get a list of all users.""")
+        reg(self._getusers,"GET", userp,"""Get a list of all users.""")
         
         # /ws.v1/netic/OF_UoR/controlpanel/userroles
         userpath=virtualpath + (webservice.WSPathStaticString("userroles"),)                                                      
