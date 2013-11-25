@@ -114,7 +114,7 @@ class ControlTools(Component):
         reg(self._getcaps,"GET", capspath,"""Get a list of all capabilities.""")
         
         # /ws.v1/netic/OF_UoR/controlpanel/user
-        userpath=virtualpath + (webservice.WSPathStaticString("user"),)                                                      
+        userp=virtualpath + (webservice.WSPathStaticString("user"),)                                                      
         reg(self._getusers,"GET", userpath,"""Get a list of all users.""")
         
         # /ws.v1/netic/OF_UoR/controlpanel/userroles
@@ -122,7 +122,7 @@ class ControlTools(Component):
         reg(self._getAllUserRoles,"GET", userpath,"""Get a list of all user roles.""")
         
         # /ws.v1/netic/OF_UoR/controlpanel/user/{username}
-        usernamepath=userpath + (WSPathExistingUser(self.manager),)
+        usernamepath=userp + (WSPathExistingUser(self.manager),)
         reg(self._deleteuser,"DELETE", usernamepath,"""Delete a user.""")                                                      
         
         # /ws.v1/netic/OF_UoR/controlpanel/user/{username}/roles
