@@ -391,7 +391,7 @@ class InvaidAuthSystemError(Exception):
     pass
 
 
-def requestIsAllowed(request, cap): 
+def requestIsAllowed(request, cap):
 
     session = get_current_session(request)
     try:
@@ -402,9 +402,7 @@ def requestIsAllowed(request, cap):
         return False
     if not cap: #modificato da Valerio, vuoto vuol dire pari a FALSE
         return True
-        
-    
-    for role in roles:        
+    for role in roles:     
         if role.has_all_capabilities(cap):
             return True
     return False
