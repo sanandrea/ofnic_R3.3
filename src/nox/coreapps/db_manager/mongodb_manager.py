@@ -20,10 +20,10 @@
 
 
 import logging
-import pymongo
+#import pymongo
 
 from nox.lib.core     import *
-from pymongo import MongoClient
+#from pymongo import MongoClient
 
 lg = logging.getLogger('mongo')
 
@@ -33,11 +33,13 @@ class NoSQLManager(Component):
         Component.__init__(self, ctxt)
 
     def install(self):
-        client = MongoClient('localhost', 27017)
-        self.db = client['netic']
+        pass
+        #client = MongoClient('localhost', 27017)
+        #self.db = client['netic']
 
     def getDatabase(self):
-        return self.db
+        pass
+        #return self.db
         
     def saveDocument(self, aDocument, inTable):
         lg.debug("Save doc")

@@ -1,0 +1,11 @@
+{
+    "components": [
+        {
+            "name": "virtnet" ,
+            "dependencies": [
+                "python","discoveryws"
+            ], 
+            "python": "nox.netapps.virtual_network.virtualnetwork_ws"
+        }
+    ]
+}
