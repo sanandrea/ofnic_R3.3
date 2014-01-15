@@ -26,8 +26,8 @@ import MySQLdb
 
 MYSQL_HOST = "localhost"
 MYSQL_PORT = 3306
-MYSQL_USER = "root"
-MYSQL_PASSWD = ""
+MYSQL_USER = "ofnic"
+MYSQL_PASSWD = "openflow"
 MYSQL_DB = "openflow_users" 
 
 #Conn = MySQLdb.Connect(host = MYSQL_HOST, port = MYSQL_PORT, user = MYSQL_USER, passwd= MYSQL_PASSWD, db= MYSQL_DB )

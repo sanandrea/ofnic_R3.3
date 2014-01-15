@@ -1,8 +1,11 @@
 NOX=$PWD
 
 
-configure:
+configure: db
 	./boot.sh; mkdir -p build; cd build; ../configure
+
+db:
+	./dbScript.sh
 
 compile:
 	make -C build
