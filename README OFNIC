@@ -1,0 +1,12 @@
+OFNIC Openflow Network Information & Control
+-----------------------------------
+Copyright 2013 - 2014 (C) Universita' di Roma La Sapienza
+
+Welcome to the OFNIC network information & control platform.   This distribution
+includes all the software you need to build, install, and deploy this GE in
+your network, as well as source code and tools to allow you to develop
+your own NetIC API based applications.
+
+OFNIC relies on OpenFlow as the communication protocol for controlling
+switches and SNMP as the protocol to retrieve network statistics.
+
