@@ -1071,6 +1071,7 @@ class WSRes(webauth.AuthResource):
         self.version = version
         self.loginUri = "/netic.v" + str(self.version) + "/login"
         self.regUri = "/netic.v" + str(self.version) + "/register"
+        self.docUri = "/netic.v" + str(self.version) + "/doc"
         webauth.AuthResource.__init__(self, component)
         self.mgr = WSRequestHandler()
         self.webauth = component.resolve(webauth.webauth)
@@ -1122,7 +1123,11 @@ class WSRes(webauth.AuthResource):
             return self.mgr.handle(request)
         if request.path == self.regUri:
             # No auth needed to reg... :-)
-            return self.mgr.handle(request) 
+            return self.mgr.handle(request)
+
+        if request.path == self.docUri:
+            # No auth needed to doc
+            return self.mgr.handle(request)
         if not self.webauth.is_initialized(): 
             return internalError(request,"Server Uninitialized")
         if not self.webauth.requestIsAuthenticated(request):
